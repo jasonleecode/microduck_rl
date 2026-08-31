@@ -21,6 +21,8 @@ agents
 *.pch
 nohup.out
 *.onnx
+# Downloaded deployment policies ARE checked in (they are inputs, not artifacts)
+!policies/**/*.onnx
 beyondmimic_motions/
 artifacts/
 *.npz

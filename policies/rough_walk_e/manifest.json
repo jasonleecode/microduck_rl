@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "model_api": 1,
+  "name": "rough-walk-e",
+  "kind": "perpetual",
+  "obs_len": 61,
+  "action_len": 14,
+  "action_scale": 1.0,
+  "entry_pose": "standing",
+  "duration_s": null,
+  "description": "Velocity-commanded walking tuned for rough ground (grid tiles, small stairs, rubble, slopes): the shipped alpha_walking fine-tuned 800 iterations on a hostile-terrain ladder. Same command scheme, same motor-power envelope, roughly half the falls.",
+  "command": {
+    "twist": [
+      "vx: forward velocity command, m/s, trained range -0.4 .. 0.4",
+      "vy: lateral velocity command, m/s, trained range -0.3 .. 0.3",
+      "wz: yaw rate command, rad/s, trained range -1.0 .. 1.0 (achieved ~0.41 at 1.0; ~0.22 at 0.5)"
+    ],
+    "head": "4 head-joint deltas from HOME, rad (neck_pitch, head_pitch, head_yaw, head_roll) \u2014 tracked, same as alpha_walking",
+    "body": "unused (zeros)",
+    "idle": [
+      0,
+      0,
+      0
+    ]
+  },
+  "robot": {
+    "model": "microduck",
+    "hw_rev": 1,
+    "servos": "xl330",
+    "control_hz": 50
+  },
+  "training": {
+    "task_id": "Mjlab-Hostile-FinetuneFeetProgress-MicroDuck",
+    "repo": "pollen-robotics/microduck_rl",
+    "commit": "6cd45fc on branch hostile-terrain (https://github.com/pollen-robotics/microduck_rl/commit/6cd45fc)",
+    "run": "pollen-robotics/hostile-e-finetune-feet-progress-20260830-0103 (resumed from alpha_walking's checkpoint, wandb yr25mna4 model_9999)"
+  },
+  "eval": {
+    "sim_proxy": "CPU MuJoCo with the BAM XL330 servo model; 10 s rollouts at 0.3 m/s, 5 random headings per terrain",
+    "battery_falls": "14/110 across flat, 0-1.5 cm grids, 1-3 cm stairs, +/-0.2-2.5 cm rubble, 3-9 deg slopes (alpha_walking: 32/110 on the same battery)",
+    "corridor_tour_m": 9.3,
+    "flat_speed_m_s": 0.12,
+    "motor_power_flat_w": 1.02,
+    "turn_response": "0.41 rad/s achieved for 1.0 commanded; 0.22 for 0.5 (alpha: 0.50 at 1.0 with a deadband below ~0.5)",
+    "known_limits": "falls descending stairs >= 2 cm; slightly weaker push recovery than alpha_walking (tilting-deck test); marches in place on rubble bumps >= ~2 cm instead of advancing; never tested on hardware"
+  }
+}
