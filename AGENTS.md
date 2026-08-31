@@ -23,6 +23,15 @@ uv run --with pytest pytest tests/
 A 5-iteration smoke test at 64 envs catches ~95% of config errors for cents.
 Never launch a long run without one.
 
+**Accelerator selection:** `train` and `scripts/infer_policy.py` share
+`--device {auto,cuda,cpu,metal}` (resolution lives in
+`src/mjlab_microduck/device.py`). Training physics is CUDA-or-CPU only —
+warp-lang has no Metal backend, so on Apple Silicon `--device metal` trains
+on CPU (warning printed); Metal acceleration is inference-only via
+onnxruntime's CoreML EP. The `train` console script shadows mjlab's by
+install order — if `uv run train` stops accepting `--device`/`--hf-jobs`,
+re-stamp it with `uv pip install --force-reinstall --no-deps -e .`.
+
 ## Repo map
 
 - `src/mjlab_microduck/tasks/mdp.py` — ALL custom MDP functions (rewards, events,

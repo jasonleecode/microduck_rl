@@ -27,6 +27,30 @@ Requires a CUDA GPU (training runs through MuJoCo Warp) and [uv](https://docs.as
 > wheels on first run and uv's default 30 s HTTP timeout can abort mid-download.
 > Export `UV_HTTP_TIMEOUT=600` for the first sync. 
 
+### Accelerator selection (`--device`)
+
+Training and inference share one flag: `--device {auto,cuda,cpu,metal}`
+(default `auto` — CUDA where torch sees a GPU, otherwise CPU / CoreML).
+
+```bash
+uv run train <TASK_ID> --device cuda --env.scene.num-envs 4096   # NVIDIA GPU
+uv run train <TASK_ID> --device cpu --env.scene.num-envs 64 ...  # CPU smoke test
+uv run scripts/infer_policy.py --walking out.onnx --device metal # Apple GPU/ANE via CoreML
+```
+
+**macOS (Apple Silicon):** warp-lang has no Metal backend, so training physics
+always runs on CPU (`--device metal` on `train` is accepted but only prints a
+warning and selects CPU — fine for smoke tests, not for real training). Metal
+acceleration applies to *inference*: `--device metal` (or `auto` on macOS)
+runs the ONNX policy on the Apple GPU / Neural Engine through onnxruntime's
+CoreML execution provider. `--device cuda` for inference needs the
+`onnxruntime-gpu` package.
+
+> **`uv run train` doesn't accept `--device` / `--hf-jobs`?** Both this project
+> and mjlab register a `train` script; if mjlab's won during install, restore
+> ours with `uv pip install --force-reinstall --no-deps -e .`
+
+
 ```bash
 git clone https://github.com/pollen-robotics/microduck_rl
 cd microduck_rl

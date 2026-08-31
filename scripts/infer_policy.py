@@ -18,6 +18,8 @@ import mujoco
 import mujoco.viewer
 import onnxruntime as ort
 
+from mjlab_microduck.device import DEVICE_CHOICES, resolve_ort_providers
+
 MICRODUCK_XML = "src/mjlab_microduck/robot/microduck/scene.xml"
 # MICRODUCK_XML = "src/mjlab_microduck/robot/microduck/scene_ramps.xml"
 # MICRODUCK_XML = "src/mjlab_microduck/robot/microduck/scene_floor_objects.xml"
@@ -138,7 +140,12 @@ class PolicyInference:
                  sitstand_onnx_path=None,
                  kick_left_onnx_path=None, kick_right_onnx_path=None,
                  roulade_onnx_path=None,
-                 kick_duration=3.0, roulade_duration=2.0):
+                 kick_duration=3.0, roulade_duration=2.0, device="auto"):
+        # ONNX Runtime execution providers, resolved once for every session
+        # below: CoreML (Apple GPU / Neural Engine via Metal) on macOS, CUDA
+        # where available, CPU otherwise.
+        self._ort_providers = resolve_ort_providers(device)
+        print(f"ONNX Runtime providers: {self._ort_providers}")
         self.model = model
         self.data = data
         self.action_scale = action_scale
@@ -156,7 +163,7 @@ class PolicyInference:
         self.default_gait_period_from_onnx = None
         if walking_onnx_path:
             print(f"Loading walking policy from: {walking_onnx_path}")
-            self.walking_session = ort.InferenceSession(walking_onnx_path)
+            self.walking_session = ort.InferenceSession(walking_onnx_path, providers=self._ort_providers)
             w_input_shape = self.walking_session.get_inputs()[0].shape
             w_output_shape = self.walking_session.get_outputs()[0].shape
             print(f"Walking policy input: {self.walking_session.get_inputs()[0].name}, shape: {w_input_shape}")
@@ -175,7 +182,7 @@ class PolicyInference:
         self.standing_session = None
         if standing_onnx_path:
             print(f"\nLoading standing policy from: {standing_onnx_path}")
-            self.standing_session = ort.InferenceSession(standing_onnx_path)
+            self.standing_session = ort.InferenceSession(standing_onnx_path, providers=self._ort_providers)
             s_input_shape = self.standing_session.get_inputs()[0].shape
             s_output_shape = self.standing_session.get_outputs()[0].shape
             print(f"Standing policy input: {self.standing_session.get_inputs()[0].name}, shape: {s_input_shape}")
@@ -190,7 +197,7 @@ class PolicyInference:
         self.ground_pick_period = ground_pick_period
         if ground_pick_onnx_path:
             print(f"\nLoading ground pick policy from: {ground_pick_onnx_path}")
-            self.ground_pick_session = ort.InferenceSession(ground_pick_onnx_path)
+            self.ground_pick_session = ort.InferenceSession(ground_pick_onnx_path, providers=self._ort_providers)
             gp_input_shape = self.ground_pick_session.get_inputs()[0].shape
             print(f"Ground pick policy input shape: {gp_input_shape}")
 
@@ -208,7 +215,7 @@ class PolicyInference:
             raise ValueError("Provide only one of --sit / --sitstand")
         if sit_onnx_path:
             print(f"\nLoading sit policy from: {sit_onnx_path}")
-            self.sit_session = ort.InferenceSession(sit_onnx_path)
+            self.sit_session = ort.InferenceSession(sit_onnx_path, providers=self._ort_providers)
             sit_input_shape = self.sit_session.get_inputs()[0].shape
             print(f"Sit policy input shape: {sit_input_shape}")
         elif sitstand_onnx_path:
@@ -217,7 +224,7 @@ class PolicyInference:
                     "--sitstand policies use the unified 13D command obs (61D); run with --new-cmd-obs"
                 )
             print(f"\nLoading sitstand policy from: {sitstand_onnx_path}")
-            self.sit_session = ort.InferenceSession(sitstand_onnx_path)
+            self.sit_session = ort.InferenceSession(sitstand_onnx_path, providers=self._ort_providers)
             self.is_sitstand = True
             ss_input_shape = self.sit_session.get_inputs()[0].shape
             print(f"Sitstand policy input shape: {ss_input_shape}")
@@ -227,7 +234,7 @@ class PolicyInference:
         self.slope_mode = False
         if slope_onnx_path:
             print(f"\nLoading slope policy from: {slope_onnx_path}")
-            self.slope_session = ort.InferenceSession(slope_onnx_path)
+            self.slope_session = ort.InferenceSession(slope_onnx_path, providers=self._ort_providers)
             sl_input_shape = self.slope_session.get_inputs()[0].shape
             print(f"Slope policy input shape: {sl_input_shape}")
 
@@ -253,7 +260,7 @@ class PolicyInference:
                     "command obs (61D); run with --new-cmd-obs"
                 )
             print(f"\nLoading {name} policy from: {path}")
-            self.behavior_sessions[name] = ort.InferenceSession(path)
+            self.behavior_sessions[name] = ort.InferenceSession(path, providers=self._ort_providers)
             self.behavior_durations[name] = duration
             print(f"{name} policy input shape: {self.behavior_sessions[name].get_inputs()[0].shape}"
                   f"  (auto-return after {duration:.1f}s)")
@@ -803,6 +810,9 @@ class PolicyInference:
 
 def main():
     parser = argparse.ArgumentParser(description="Run ONNX policy in MuJoCo")
+    parser.add_argument("--device", choices=DEVICE_CHOICES, default="auto",
+                        help="Inference accelerator: cuda (onnxruntime-gpu), metal (CoreML on Apple "
+                             "Silicon — GPU/Neural Engine), cpu, or auto (default)")
     parser.add_argument("--roller", action="store_true", help="Use roller skate robot XML (robot_walk_rollers.xml)")
     parser.add_argument("--walking", type=str, default=None, help="Path to walking policy ONNX file")
     parser.add_argument("--standing", "-s", type=str, default=None, help="Path to standing policy ONNX file")
@@ -938,6 +948,7 @@ def main():
         roulade_onnx_path=args.roulade,
         kick_duration=args.kick_duration,
         roulade_duration=args.roulade_duration,
+        device=args.device,
     )
     policy.set_vel_cmd(args.lin_vel_x, args.lin_vel_y, args.ang_vel_z)
 
